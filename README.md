@@ -2,6 +2,8 @@
 Code will be available soon.
 
 
+Clone the [Depth Anything v2 model](https://github.com/DepthAnything/Depth-Anything-V2)
+
 ```
 git clone https://github.com/DepthAnything/Depth-Anything-V2.git
 
