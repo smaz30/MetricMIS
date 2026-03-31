@@ -9,7 +9,6 @@ class ScaleShiftFocalHead(nn.Module):
             nn.Linear(embed_dim, hidden_dim),
             nn.ReLU(),
             nn.Linear(hidden_dim, 1),  # outputs [scale, shift]
-            #nn.ReLU()
             nn.Identity()
         )
         self.mlp_shift = nn.Sequential(
@@ -22,16 +21,10 @@ class ScaleShiftFocalHead(nn.Module):
             nn.Linear(embed_dim, hidden_dim),
             nn.ReLU(),
             nn.Linear(hidden_dim, 2),  # outputs [scale, shift]
-            # nn.ReLU()
             nn.Identity()
         )
         self.init_weights()
-        nn.init.normal_(self.mlp_scale[-2].weight, std=0.001)
-        nn.init.zeros_(self.mlp_scale[-2].bias)
-        nn.init.normal_(self.mlp_shift[-1].weight, std=0.001)
-        nn.init.zeros_(self.mlp_shift[-1].bias)
-        # nn.init.normal_(self.mlp_fxfy[-2].weight, std=0.001)
-        # nn.init.normal_(self.mlp_fxfy[-2].bias, std=0.2)
+
     def init_weights(self):
         for n, m in self.named_modules():
             if isinstance(m, nn.Linear):
@@ -59,8 +52,8 @@ class ScaleShiftFocalHead(nn.Module):
 
         fx = focal[:, 0]+ 1.0
         fy = focal[:, 1] +1.0
-        #print('here', fx[0,...], fy[0,...])
-        return  scale,shift, fx, fy# [B, 2]
+
+        return  scale,shift, fx, fy
 
     
 class LayerNorm2d(nn.Module):
@@ -88,12 +81,10 @@ class SpatialPriorModule(nn.Module):
 
         self.stem = nn.Sequential(
             nn.Conv2d(in_dim, inplanes, kernel_size=4, stride=4),
-            # nn.BatchNorm2d(inplanes),
             LayerNorm2d(inplanes),
             )
         self.conv_1 = nn.Sequential(*[
             nn.Conv2d(inplanes,  inplanes, kernel_size=3, stride=1, padding=1, bias=False),
-            # nn.BatchNorm2d( inplanes),
             LayerNorm2d(inplanes),
             nn.ReLU(inplace=True),
             nn.Dropout(0.2)
@@ -101,21 +92,18 @@ class SpatialPriorModule(nn.Module):
 
         self.conv2 = nn.Sequential(*[
             nn.Conv2d(inplanes, 2 * inplanes, kernel_size=3, stride=2, padding=1, bias=False),
-            # nn.BatchNorm2d(2 * inplanes),
             LayerNorm2d(2 * inplanes),
             nn.ReLU(inplace=True),
             nn.Dropout(0.2)
         ])
         self.conv3 = nn.Sequential(*[
             nn.Conv2d(2 * inplanes, 4 * inplanes, kernel_size=3, stride=2, padding=1, bias=False),
-            # nn.BatchNorm2d(4 * inplanes),
             LayerNorm2d(4 * inplanes),
             nn.ReLU(inplace=True),
             nn.Dropout(0.2)
         ])
         self.conv4 = nn.Sequential(*[
             nn.Conv2d(4 * inplanes, 4 * inplanes, kernel_size=3, stride=2, padding=1, bias=False),
-            # nn.BatchNorm2d(4 * inplanes),
             LayerNorm2d(4 * inplanes),
             nn.ReLU(inplace=True),
             nn.Dropout(0.2)
@@ -147,7 +135,6 @@ class SpatialPriorModule(nn.Module):
                 nn.init.zeros_(m.bias)
     def forward(self, x):
 
-        # def _inner_forward(x):
         c1 = self.stem(x)
         c1 = self.conv_1(c1)
         c2 = self.conv2(c1)
@@ -177,32 +164,9 @@ class SpatialPriorModule(nn.Module):
  
 
 
-    def forward(self, x):
-
-        f_list = self.backbone(x)
-
-        
-        r1 = self.reshape1(f_list[0])
-
-        # r1 = F.dropout(r1,p=0.1,training=self.training)
-
-        r2 = self.reshape2(f_list[1])
-
-        # r2 = F.dropout(r2,p=0.1,training=self.training)
-
-        r3 = self.reshape3(f_list[2])
-
-        # r3 = F.dropout(r3,p=0.1,training=self.training)
-
-        r4 = self.reshape4(f_list[3])
-
-        # low --> high semantic
-        f_out = [r1,r2,r3,r4]
-        return f_out
-
 if __name__ == "__main__":
     dummy_in = torch.randn([2,3,224,224])
-    model = SpatialFeatureExtractor()
+    model = SpatialPriorModule()
     out = model(dummy_in)
     for o in out:
         print(o.shape)

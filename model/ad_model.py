@@ -52,9 +52,8 @@ class MetricMIS(nn.Module):
     def init_dav(self):
         self.out_channels = model_configs[self.size]['out_channels']
         self.intermediate_layer_idx = {
-            'vits': [0, 1,2,3,4, 5,6, 7, 8 ,9 , 10, 11],
+            'vits': [2, 5, 8, 11], 
             'vitb': [2, 5, 8, 11], 
-            #'vitb': [0, 1,2,3,4, 5,6, 7, 8 ,9 , 10, 11],
             'vitl': [4, 11, 17, 23], 
             'vitg': [9, 19, 29, 39]
         }
@@ -72,7 +71,7 @@ class MetricMIS(nn.Module):
             param.requires_grad = False
 
         if self.mode_finet in ['only_head']:
-            target_submodule = "scratch.output_conv"   # the submodule you want to keep trainable
+            target_submodule = "scratch.output_conv"  
 
             for name, param in self.dav2.depth_head.named_parameters():
 
@@ -120,17 +119,13 @@ class MetricMIS(nn.Module):
 
                 x_img_s = x_s[:,1:,:]
                 x_img_s = x_img_s.reshape(B,patch_h,patch_w,-1).permute(0,3,1,2)
-                # print(x_img.shape, x[:,0].shape)
-                # NOTE: DAV2 does not use the class token
-                # readout = x[:,0,:].unsqueeze(1).expand_as(x_img)
-                # print(readout.shape)
                 s_in_d = s_d + x_img_d 
                 s_in_s = s_s + x_img_s  
             x_d = self.adapters_domain[i](in_adapter, s_in_d, patch_h, patch_w)
             x_s = self.adapters_scale[i](in_adapter, s_in_s, patch_h, patch_w)
         
             fn = self.layer_norm_parallel[i](f.detach()+ x_d)
-            #fn = f+ x_d
+
             cls = fn[:, 0] 
             y = fn[:,1:] 
             list_of_f_adapted.append((y,cls))
@@ -138,8 +133,6 @@ class MetricMIS(nn.Module):
 
 
         disp = self.dav2.depth_head.forward(list_of_f_adapted, patch_h, patch_w)
-        # depth = disp
-        #depth = self.activate_depth(disp)
         disp = F.relu(disp) +1e-6
         scale, shift, fx, fy = self.scale_and_shift_head(self.layer_norm_ss(out_adapter_ss[:,1:,:]))
         return disp, scale, shift, fx, fy
@@ -155,9 +148,6 @@ class MetricMIS(nn.Module):
         
 
         features = self.dav2.pretrained.get_intermediate_layers(x, self.intermediate_layer_idx[self.size],  return_class_token=True)
-        # !!! i need to use this normalization to send features into the decoder
-        #self.dav2.pretrained.norm()
-    
         list_of_f_adapted = []
         B,_,_,_ = x.shape
         out_adapter_ss = None
@@ -167,7 +157,7 @@ class MetricMIS(nn.Module):
                 s_in_d = s_d
 
             else:
-                in_adapter = f.detach() #+x
+                in_adapter = f.detach() 
                 x_img_d = x_d[:,1:,:]
                 x_img_d = x_img_d.reshape(B,patch_h,patch_w,-1).permute(0,3,1,2)
                 s_in_d = s_d + x_img_d 
@@ -217,10 +207,6 @@ class MetricMIS(nn.Module):
 
                 x_img_seg = x_seg[:,1:,:]
                 x_img_seg = x_img_seg.reshape(B,patch_h,patch_w,-1).permute(0,3,1,2)
-                # print(x_img.shape, x[:,0].shape)
-                # NOTE: DAV2 does not use the class token
-                # readout = x[:,0,:].unsqueeze(1).expand_as(x_img)
-                # print(readout.shape)
                 s_in_d = s_d + x_img_d 
                 s_in_s = s_s + x_img_s  
                 f_seg_in = f_seg + x_img_seg
