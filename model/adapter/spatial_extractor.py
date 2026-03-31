@@ -4,23 +4,23 @@ import torch.nn.functional as F
 class ScaleShiftFocalHead(nn.Module):
     def __init__(self, embed_dim=1024, hidden_dim=256):
         super().__init__()
-        self.gap = nn.AdaptiveAvgPool1d(1)  # or just .mean(dim=1)
+        self.gap = nn.AdaptiveAvgPool1d(1)  
         self.mlp_scale = nn.Sequential(
             nn.Linear(embed_dim, hidden_dim),
             nn.ReLU(),
-            nn.Linear(hidden_dim, 1),  # outputs [scale, shift]
+            nn.Linear(hidden_dim, 1),  
             nn.Identity()
         )
         self.mlp_shift = nn.Sequential(
             nn.Linear(embed_dim, hidden_dim),
             nn.ReLU(),
-            nn.Linear(hidden_dim, 1)  # outputs [scale, shift]
+            nn.Linear(hidden_dim, 1)  
         )
 
         self.mlp_fxfy = nn.Sequential(
             nn.Linear(embed_dim, hidden_dim),
             nn.ReLU(),
-            nn.Linear(hidden_dim, 2),  # outputs [scale, shift]
+            nn.Linear(hidden_dim, 2),  
             nn.Identity()
         )
         self.init_weights()
