@@ -5,9 +5,11 @@ sys.path.append(str(Path(__file__).parent.parent))
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import copy
 from depth_anything_v2.dpt import DepthAnythingV2, DPTHead
 from model.adapter.adapterconv import  AdapterWSpatial
 from model.adapter.spatial_extractor import ScaleShiftFocalHead, SpatialPriorModule
+
 _RESNET_MEAN = [0.485, 0.456, 0.406]
 _RESNET_STD = [0.229, 0.224, 0.225]
 model_configs = {
@@ -106,8 +108,8 @@ class MetricMIS(nn.Module):
         list_of_f_adapted = []
         B,_,_,_ = x.shape
         out_adapter_ss = None
-        for i, (f, s_d, s_s) in enumerate(zip(features, spatial_features_domain, spatial_features_scale )):
-            
+        for i, (ff, s_d, s_s) in enumerate(zip(features, spatial_features_domain, spatial_features_scale )):
+            f = torch.cat((ff[1].unsqueeze(1), ff[0]), dim=1)
             if i == 0:
                 in_adapter = f.detach()
                 s_in_d = s_d
@@ -151,7 +153,8 @@ class MetricMIS(nn.Module):
         list_of_f_adapted = []
         B,_,_,_ = x.shape
         out_adapter_ss = None
-        for i, (f, s_d) in enumerate(zip(features, spatial_features_domain )):
+        for i, (ff, s_d) in enumerate(zip(features, spatial_features_domain )):
+            f = torch.cat((ff[1].unsqueeze(1), ff[0]), dim=1)
             if i == 0:
                 in_adapter = f.detach()
                 s_in_d = s_d
@@ -191,7 +194,8 @@ class MetricMIS(nn.Module):
         B,_,_,_ = x.shape
         out_adapter_ss = None
         fssss = []
-        for i, (f, s_d, s_s, f_seg) in enumerate(zip(features, spatial_features_domain, spatial_features_scale, spatial_features_segmentation )):
+        for i, (ff, s_d, s_s, f_seg) in enumerate(zip(features, spatial_features_domain, spatial_features_scale, spatial_features_segmentation )):
+            f = torch.cat((ff[1].unsqueeze(1), ff[0]), dim=1)
             if i == 0:
                 in_adapter = f.detach()
                 s_in_d = s_d
@@ -232,6 +236,26 @@ class MetricMIS(nn.Module):
         disp = F.relu(disp) +1e-6
         scale, shift, fx, fy = self.scale_and_shift_head(self.layer_norm_ss(out_adapter_ss[:,1:,:]))
         return disp, scale, shift, fx, fy, logits
+    
+    def infer_image(self,image, device):
+        PATCH_SIZE = 14
+        H_IN, W_IN, _ = image.shape
+        H_MODEL = 308
+        AR = W_IN/H_IN
+        W_MODEL = round(H_MODEL * AR)
+        W_MODEL = round(W_MODEL / PATCH_SIZE) * PATCH_SIZE
+        H_MODEL, W_MODEL = 308, 308
+
+        img_torch = torch.from_numpy(copy.deepcopy(image)).permute(2, 0, 1).float().unsqueeze(0) /255
+        img_torch = img_torch.to(device)
+        img_torch = F.interpolate(img_torch, (H_MODEL, W_MODEL), mode="bilinear", align_corners=False,antialias=True)
+        with torch.no_grad():
+            disp, scale, shift, fx, fy, mask_logits = self.forward(img_torch)
+        depth=1/(disp * scale + shift)
+        depth_original_res = F.interpolate(depth, (H_IN, W_IN), mode="bilinear", align_corners=False, antialias=False)
+        mask = F.interpolate(torch.sigmoid(mask_logits), (H_IN, W_IN), mode="bilinear", align_corners=False, antialias=False)
+        mask_original_res = mask >0.5
+        return depth_original_res.squeeze().cpu().numpy(), mask_original_res.squeeze().cpu().numpy(), fx, fy
     
 
 if __name__ == "__main__":
